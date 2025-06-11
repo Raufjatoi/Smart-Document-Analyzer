@@ -1,6 +1,6 @@
 # Smart Document Analyzer
 
-![Smart Document Analyzer Screenshot](image.png)
+![Smart Document Analyzer Screenshot](public/image.png)
 
 ## Overview
 
@@ -18,14 +18,14 @@ This project is built using a modern web development stack to ensure high perfor
 
 ### Frontend
 
-- ![React](react_logo.png) **React**: A JavaScript library for building user interfaces.
-- ![Vite](vite_logo.png) **Vite**: A fast frontend build tool that provides a lightning-fast development experience.
-- ![Tailwind CSS](tailwind_css_logo.png) **Tailwind CSS**: A utility-first CSS framework for rapidly building custom designs.
-- ![Shadcn UI](shadcn_ui_logo.png) **Shadcn UI**: A collection of re-usable components built using Radix UI and Tailwind CSS.
+- ![React](public/react_logo.png) **React**: A JavaScript library for building user interfaces.
+- ![Vite](public/vite_logo.png) **Vite**: A fast frontend build tool that provides a lightning-fast development experience.
+- ![Tailwind CSS](public/tailwind_css_logo.png) **Tailwind CSS**: A utility-first CSS framework for rapidly building custom designs.
+- ![Shadcn UI](public/shadcn_ui_logo.png) **Shadcn UI**: A collection of re-usable components built using Radix UI and Tailwind CSS.
 
 ### Backend/API
 
-- ![Groq](groq_logo.png) **Groq**: Utilized for its powerful API, specifically the `compound beta` model, to provide the AI-powered document analysis capabilities.
+- ![Groq](public/groq_logo.png) **Groq**: Utilized for its powerful API, specifically the `compound beta` model, to provide the AI-powered document analysis capabilities.
 
 ## Live Project
 
