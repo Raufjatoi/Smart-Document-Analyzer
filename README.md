@@ -18,14 +18,15 @@ This project is built using a modern web development stack to ensure high perfor
 
 ### Frontend
 
-![React](public/react_logo.png) **React**: A JavaScript library for building user interfaces.
-![Vite](public/vite_logo.png) **Vite**: A fast frontend build tool that provides a lightning-fast development experience.
-![Tailwind CSS](public/tailwind_css_logo.png) **Tailwind CSS**: A utility-first CSS framework for rapidly building custom designs.
-![Shadcn UI](public/shadcn_ui_logo.png) **Shadcn UI**: A collection of re-usable components built using Radix UI and Tailwind CSS.
+<img src="public/react_logo.png" alt="React" width="30"/> **React** &nbsp;&nbsp; 
+<img src="public/vite_logo.png" alt="Vite" width="30"/> **Vite** &nbsp;&nbsp;
+<img src="public/tailwind_css_logo.png" alt="Tailwind CSS" width="30"/> **Tailwind CSS** &nbsp;&nbsp;
+<img src="public/shadcn_ui_logo.png" alt="Shadcn UI" width="30"/> **Shadcn UI**
 
 ### Backend/API
 
-![Groq](public/groq_logo.png) **Groq**: Utilized for its powerful API, specifically the `compound beta` model, to provide the AI-powered document analysis capabilities.
+<img src="public/groq_logo.png" alt="Groq" width="30"/> **Groq**
+
 
 ## Live Project
 
@@ -39,7 +40,7 @@ The complete source code for this project is available on GitHub: [Smart Documen
 
 This project was completed as a task for [iCreativez](https://www.icreativez.com/).
 
-![iCreativez Logo](icreativez_logo.png)
+![iCreativez Logo](public/icreativez_logo.png)
 
 ## Credits
 
