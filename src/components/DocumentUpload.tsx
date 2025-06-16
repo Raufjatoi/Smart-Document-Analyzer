@@ -1,10 +1,12 @@
 import React, { useCallback, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, FileText, Loader2 } from 'lucide-react';
+import { Upload, FileText, Loader2, Download } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import * as mammoth from 'mammoth';
+import JSZip from 'jszip';
+import jsPDF from 'jspdf';
 
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import Worker from 'pdfjs-dist/build/pdf.worker?worker';
@@ -16,7 +18,6 @@ GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.js',
   import.meta.url
 ).toString();
-
 
 interface Document {
   id: string;
@@ -32,18 +33,22 @@ interface Document {
     readingTime: number;
     sentiment: string;
   };
+  insights?: string;
+  graphs?: any[];
 }
 
 interface DocumentUploadProps {
   onDocumentUploaded: (document: Document) => void;
   isUploading: boolean;
   setIsUploading: (loading: boolean) => void;
+  currentDocument?: Document;
 }
 
 const DocumentUpload: React.FC<DocumentUploadProps> = ({
   onDocumentUploaded,
   isUploading,
-  setIsUploading
+  setIsUploading,
+  currentDocument
 }) => {
   const [dragOver, setDragOver] = useState(false);
   const { toast } = useToast();
@@ -63,6 +68,8 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
         text = await extractTextFromDOCX(file);
       } else if (file.type === 'text/plain') {
         text = await file.text();
+      } else if (file.type === 'application/zip' || file.name.endsWith('.zip')) {
+        text = await extractTextFromZIP(file);
       } else {
         throw new Error('Unsupported file type');
       }
@@ -91,7 +98,9 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
           pageCount,
           readingTime,
           sentiment: analysis.sentiment || 'neutral'
-        }
+        },
+        insights: analysis.insights || '',
+        graphs: analysis.graphs || []
       };
 
       onDocumentUploaded(document);
@@ -111,20 +120,90 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
     }
   };
 
-const extractTextFromPDF = async (file: File): Promise<{ text: string, pageCount: number }> => {
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await getDocument({ data: arrayBuffer }).promise;
-  let fullText = '';
+  const extractTextFromZIP = async (file: File): Promise<string> => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const zip = new JSZip();
+      const zipContent = await zip.loadAsync(arrayBuffer);
+      
+      let combinedText = '';
+      const supportedExtensions = ['.txt', '.pdf', '.docx'];
+      
+      for (const [filename, zipEntry] of Object.entries(zipContent.files)) {
+        if (zipEntry.dir) continue;
+        
+        const extension = filename.toLowerCase().substring(filename.lastIndexOf('.'));
+        
+        if (supportedExtensions.includes(extension)) {
+          try {
+            if (extension === '.txt') {
+              const content = await zipEntry.async('text');
+              combinedText += `\n\n--- ${filename} ---\n${content}`;
+            } else if (extension === '.pdf') {
+              const content = await zipEntry.async('arraybuffer');
+              const pdfText = await extractTextFromPDFBuffer(content);
+              combinedText += `\n\n--- ${filename} ---\n${pdfText}`;
+            } else if (extension === '.docx') {
+              const content = await zipEntry.async('arraybuffer');
+              const docxText = await extractTextFromDOCXBuffer(content);
+              combinedText += `\n\n--- ${filename} ---\n${docxText}`;
+            }
+          } catch (error) {
+            console.warn(`Failed to process ${filename}:`, error);
+            combinedText += `\n\n--- ${filename} ---\n[Error processing file]`;
+          }
+        }
+      }
+      
+      if (!combinedText.trim()) {
+        throw new Error('No supported text files found in ZIP archive');
+      }
+      
+      return combinedText.trim();
+    } catch (error) {
+      console.error('ZIP parsing error:', error);
+      throw new Error('Failed to parse ZIP file');
+    }
+  };
 
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    const strings = content.items.map((item: any) => item.str).join(' ');
-    fullText += strings + '\n\n';
-  }
+  const extractTextFromPDFBuffer = async (arrayBuffer: ArrayBuffer): Promise<string> => {
+    const pdf = await getDocument({ data: arrayBuffer }).promise;
+    let fullText = '';
 
-  return { text: fullText.trim(), pageCount: pdf.numPages };
-};
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const strings = content.items.map((item: any) => item.str).join(' ');
+      fullText += strings + '\n\n';
+    }
+
+    return fullText.trim();
+  };
+
+  const extractTextFromDOCXBuffer = async (arrayBuffer: ArrayBuffer): Promise<string> => {
+    try {
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      return result.value;
+    } catch (error) {
+      console.error('DOCX parsing error:', error);
+      throw new Error('Failed to parse DOCX file');
+    }
+  };
+
+  const extractTextFromPDF = async (file: File): Promise<{ text: string, pageCount: number }> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await getDocument({ data: arrayBuffer }).promise;
+    let fullText = '';
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const strings = content.items.map((item: any) => item.str).join(' ');
+      fullText += strings + '\n\n';
+    }
+
+    return { text: fullText.trim(), pageCount: pdf.numPages };
+  };
 
   const extractTextFromDOCX = async (file: File): Promise<string> => {
     try {
@@ -155,9 +234,11 @@ const extractTextFromPDF = async (file: File): Promise<{ text: string, pageCount
             2. "summary" - a concise 2-3 sentence summary
             3. "tags" - array of 3-6 relevant keywords/tags
             4. "sentiment" - overall sentiment: positive, neutral, or negative
+            5. "insights" - detailed insights and key findings (2-3 paragraphs)
+            6. "graphs" - array of suggested graph/chart data if applicable
             
             Return only valid JSON in this exact format:
-            {"classification": "Resume", "summary": "Brief summary here", "tags": ["tag1", "tag2", "tag3"], "sentiment": "positive"}`
+            {"classification": "Resume", "summary": "Brief summary here", "tags": ["tag1", "tag2", "tag3"], "sentiment": "positive", "insights": "Detailed insights here", "graphs": []}`
           },
           {
             role: 'user',
@@ -165,7 +246,7 @@ const extractTextFromPDF = async (file: File): Promise<{ text: string, pageCount
           }
         ],
         temperature: 0.3,
-        max_tokens: 500,
+        max_tokens: 1000,
       }),
     });
 
@@ -184,8 +265,106 @@ const extractTextFromPDF = async (file: File): Promise<{ text: string, pageCount
         classification: 'Others',
         summary: 'Document analyzed successfully.',
         tags: ['document', 'analyzed'],
-        sentiment: 'neutral'
+        sentiment: 'neutral',
+        insights: 'Document has been processed and analyzed.',
+        graphs: []
       };
+    }
+  };
+
+  const generateAndDownloadPDF = async () => {
+    if (!currentDocument) {
+      toast({
+        title: "No document available",
+        description: "Please upload and process a document first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const pdf = new jsPDF();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 20;
+      const maxWidth = pageWidth - 2 * margin;
+      let yPosition = margin;
+
+      // Helper function to add text with word wrapping
+      const addWrappedText = (text: string, fontSize: number = 12, isBold: boolean = false) => {
+        pdf.setFontSize(fontSize);
+        if (isBold) {
+          pdf.setFont(undefined, 'bold');
+        } else {
+          pdf.setFont(undefined, 'normal');
+        }
+        
+        const lines = pdf.splitTextToSize(text, maxWidth);
+        
+        // Check if we need a new page
+        if (yPosition + (lines.length * fontSize * 0.5) > pdf.internal.pageSize.getHeight() - margin) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+        
+        pdf.text(lines, margin, yPosition);
+        yPosition += lines.length * fontSize * 0.5 + 5;
+      };
+
+      // Title
+      addWrappedText(`AI Analysis Report: ${currentDocument.name}`, 18, true);
+      yPosition += 10;
+
+      // Document Info
+      addWrappedText('Document Information', 14, true);
+      addWrappedText(`Type: ${currentDocument.type}`);
+      addWrappedText(`Date: ${currentDocument.date}`);
+      addWrappedText(`Word Count: ${currentDocument.metadata.wordCount}`);
+      addWrappedText(`Reading Time: ${currentDocument.metadata.readingTime} minutes`);
+      addWrappedText(`Sentiment: ${currentDocument.metadata.sentiment}`);
+      if (currentDocument.metadata.pageCount) {
+        addWrappedText(`Page Count: ${currentDocument.metadata.pageCount}`);
+      }
+      yPosition += 10;
+
+      // Tags
+      addWrappedText('Tags', 14, true);
+      addWrappedText(currentDocument.tags.join(', '));
+      yPosition += 10;
+
+      // Summary
+      addWrappedText('Summary', 14, true);
+      addWrappedText(currentDocument.summary);
+      yPosition += 10;
+
+      // Insights
+      if (currentDocument.insights) {
+        addWrappedText('AI Insights', 14, true);
+        addWrappedText(currentDocument.insights);
+        yPosition += 10;
+      }
+
+      // Full Text (truncated if too long)
+      addWrappedText('Document Content', 14, true);
+      const truncatedText = currentDocument.fullText.length > 2000 
+        ? currentDocument.fullText.substring(0, 2000) + '...\n\n[Content truncated for PDF export]'
+        : currentDocument.fullText;
+      addWrappedText(truncatedText, 10);
+
+      // Save the PDF
+      const fileName = `AI_Analysis_${currentDocument.name.replace(/\.[^/.]+$/, "")}_${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(fileName);
+
+      toast({
+        title: "PDF downloaded successfully!",
+        description: `Saved as ${fileName}`,
+      });
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast({
+        title: "PDF generation failed",
+        description: "Could not generate the PDF. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -260,29 +439,42 @@ const extractTextFromPDF = async (file: File): Promise<{ text: string, pageCount
                   Drag & drop your file here, or click to browse
                 </p>
                 <p className="text-white/60 text-sm mb-6">
-                  Supports: PDF, DOCX, TXT (Max 10MB)
+                  Supports: PDF, DOCX, TXT, ZIP (Max 10MB)
                 </p>
                 
-                <input
-                  type="file"
-                  accept=".pdf,.docx,.txt"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                  id="file-upload"
-                  disabled={isUploading}
-                />
-                <label htmlFor="file-upload">
-                  <Button
-                    asChild
-                    className="bg-white/20 hover:bg-white/30 text-white border-white/30 cursor-pointer"
+                <div className="flex gap-4 justify-center items-center">
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.txt,.zip"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    id="file-upload"
                     disabled={isUploading}
-                  >
-                    <span>
-                      <FileText className="w-4 h-4 mr-2" />
-                      Choose File
-                    </span>
-                  </Button>
-                </label>
+                  />
+                  <label htmlFor="file-upload">
+                    <Button
+                      asChild
+                      className="bg-white/20 hover:bg-white/30 text-white border-white/30 cursor-pointer"
+                      disabled={isUploading}
+                    >
+                      <span>
+                        <FileText className="w-4 h-4 mr-2" />
+                        Choose File
+                      </span>
+                    </Button>
+                  </label>
+                  
+                  {currentDocument && (
+                    <Button
+                      onClick={generateAndDownloadPDF}
+                      className="bg-green-600/20 hover:bg-green-600/30 text-white border-green-600/30"
+                      disabled={isUploading}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download AI Report
+                    </Button>
+                  )}
+                </div>
               </>
             )}
           </div>

@@ -1,13 +1,14 @@
-
 import React from 'react';
 import { motion } from 'framer-motion';
-import { X, RefreshCw, Trash2, FileText, Calendar, Tag, Clock, BookOpen, TrendingUp } from 'lucide-react';
+import { X, RefreshCw, Trash2, FileText, Calendar, Tag, Clock, BookOpen, TrendingUp, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
+import jsPDF from 'jspdf';
 
 interface Document {
   id: string;
@@ -23,6 +24,8 @@ interface Document {
     readingTime: number;
     sentiment: string;
   };
+  insights?: string;
+  graphs?: any[];
 }
 
 interface DocumentViewerProps {
@@ -40,6 +43,95 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
   onDelete,
   isProcessing
 }) => {
+  const { toast } = useToast();
+
+  const generateAndDownloadPDF = async () => {
+    try {
+      const pdf = new jsPDF();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 20;
+      const maxWidth = pageWidth - 2 * margin;
+      let yPosition = margin;
+
+      // Helper function to add text with word wrapping
+      const addWrappedText = (text: string, fontSize: number = 12, isBold: boolean = false) => {
+        pdf.setFontSize(fontSize);
+        if (isBold) {
+          pdf.setFont(undefined, 'bold');
+        } else {
+          pdf.setFont(undefined, 'normal');
+        }
+        
+        const lines = pdf.splitTextToSize(text, maxWidth);
+        
+        // Check if we need a new page
+        if (yPosition + (lines.length * fontSize * 0.5) > pdf.internal.pageSize.getHeight() - margin) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+        
+        pdf.text(lines, margin, yPosition);
+        yPosition += lines.length * fontSize * 0.5 + 5;
+      };
+
+      // Title
+      addWrappedText(`AI Analysis Report: ${document.name}`, 18, true);
+      yPosition += 10;
+
+      // Document Info
+      addWrappedText('Document Information', 14, true);
+      addWrappedText(`Type: ${document.type}`);
+      addWrappedText(`Date: ${document.date}`);
+      addWrappedText(`Word Count: ${document.metadata.wordCount}`);
+      addWrappedText(`Reading Time: ${document.metadata.readingTime} minutes`);
+      addWrappedText(`Sentiment: ${document.metadata.sentiment}`);
+      if (document.metadata.pageCount) {
+        addWrappedText(`Page Count: ${document.metadata.pageCount}`);
+      }
+      yPosition += 10;
+
+      // Tags
+      addWrappedText('Tags', 14, true);
+      addWrappedText(document.tags.join(', '));
+      yPosition += 10;
+
+      // Summary
+      addWrappedText('AI Summary', 14, true);
+      addWrappedText(document.summary);
+      yPosition += 10;
+
+      // Insights (if available)
+      if (document.insights) {
+        addWrappedText('AI Insights', 14, true);
+        addWrappedText(document.insights);
+        yPosition += 10;
+      }
+
+      // Full Text (truncated if too long)
+      addWrappedText('Document Content', 14, true);
+      const truncatedText = document.fullText.length > 2000 
+        ? document.fullText.substring(0, 2000) + '...\n\n[Content truncated for PDF export]'
+        : document.fullText;
+      addWrappedText(truncatedText, 10);
+
+      // Save the PDF
+      const fileName = `AI_Analysis_${document.name.replace(/\.[^/.]+$/, "")}_${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(fileName);
+
+      toast({
+        title: "PDF downloaded successfully!",
+        description: `Saved as ${fileName}`,
+      });
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast({
+        title: "PDF generation failed",
+        description: "Could not generate the PDF. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getTypeEmoji = (type: string) => {
     const emojiMap: { [key: string]: string } = {
       'Resume': '👤',
@@ -104,14 +196,27 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 </div>
               </div>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className="text-white/70 hover:text-white hover:bg-white/10"
-            >
-              <X className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+<Button
+  variant="outline"
+  size="icon" // makes the button square and sized for icons
+  onClick={generateAndDownloadPDF}
+  className="bg-green-600/20 hover:bg-green-600/30 text-white border-green-600/30"
+>
+  <Download className="w-4 h-4" />
+</Button>
+
+
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                className="text-white/70 hover:text-white hover:bg-white/10"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
           
           <div className="flex flex-wrap gap-2 mt-4">
@@ -173,6 +278,24 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
               <Separator className="bg-white/20" />
 
+              {/* AI Insights Section (if available) */}
+              {document.insights && (
+                <>
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <TrendingUp className="w-4 h-4 text-white/70" />
+                      <h4 className="font-medium text-white">AI Insights</h4>
+                    </div>
+                    <div className="bg-white/5 p-4 rounded-lg border-l-4 border-purple-400">
+                      <p className="text-white/80 text-sm leading-relaxed">
+                        {document.insights}
+                      </p>
+                    </div>
+                  </div>
+                  <Separator className="bg-white/20" />
+                </>
+              )}
+
               {/* Tags Section */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
@@ -196,10 +319,21 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
 
               {/* Full Text Section */}
               <div>
-                <h4 className="font-medium text-white mb-3 flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  Full Content
-                </h4>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium text-white flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    Full Content
+                  </h4>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={generateAndDownloadPDF}
+                    className="bg-green-600/20 hover:bg-green-600/30 text-white border-green-600/30 text-xs"
+                  >
+                    <Download className="w-3 h-3 mr-1" />
+                    Export PDF
+                  </Button>
+                </div>
                 <div className="bg-white/5 p-4 rounded-lg border border-white/10">
                   <ScrollArea className="h-64">
                     <div className="prose prose-sm max-w-none">
