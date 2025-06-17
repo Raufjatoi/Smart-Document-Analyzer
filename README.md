@@ -37,7 +37,7 @@ You can access the live version of the project here: [Smart Document Analyzer](h
 
 The complete source code for this project is available on GitHub: [Smart Document Analyzer GitHub](https://github.com/Raufjatoi/Smart-Document-Analyzer)
 
-## Task for iCreativez
+## Task given by iCreativez
 
 This project was completed as a task for [iCreativez](https://www.icreativez.com/).
 
