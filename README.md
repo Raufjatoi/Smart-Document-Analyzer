@@ -8,9 +8,10 @@ The Smart Document Analyzer is an innovative web application designed to effortl
 
 ## Features
 
-- **Document Analysis**: Upload and analyze `.txt`, `.pdf` and `.docx` files.
+- **Document Analysis**: Upload and analyze `.txt`, `.pdf`, `.zip` and `.docx` files.
 - **AI-Powered Insights**: Utilizes advanced AI models to extract meaningful information and provide insights from your documents.
 - **User-Friendly Interface**: A clean and intuitive design ensures a seamless user experience.
+- **Download the AI Summary**: Download the AI summary and insights as a PDF to share easily.
 
 ## Technologies Used
 
