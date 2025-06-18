@@ -174,6 +174,22 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
       ));
   };
 
+  const handleReprocess = async () => {
+    try {
+      // Call the parent's reprocess function
+      await onReprocess(document);
+      
+      // Toast is already handled in the parent component
+    } catch (error) {
+      console.error('Error reprocessing document:', error);
+      toast({
+        title: "Reprocessing failed",
+        description: "Could not reprocess the document. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}
@@ -350,7 +366,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => onReprocess(document)}
+                  onClick={handleReprocess}
                   disabled={isProcessing}
                   className="flex-1 bg-white/10 border-white/30 text-white hover:bg-white/20"
                 >

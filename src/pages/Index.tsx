@@ -58,8 +58,9 @@ const Index = () => {
   const handleReprocess = async (doc: Document) => {
     setIsUploading(true);
     try {
-      // Simulate reprocessing by calling the same analysis
+      // Import the analyzeWithGroq function from DocumentUpload
       const analysis = await analyzeWithGroq(doc.fullText);
+      
       const updatedDoc = {
         ...doc,
         type: analysis.classification,
@@ -295,56 +296,77 @@ const Index = () => {
   );
 };
 
-// Groq API analysis function
+// Optimize the analyzeWithGroq function to handle large documents better
 const analyzeWithGroq = async (text: string) => {
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer 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',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'compound-beta',
-      messages: [
-        {
-          role: 'system',
-          content: `You are a document analysis AI. Analyze the provided document text and return a JSON response with:
-          1. "classification" - categorize as: Resume, Invoice, Legal Agreement, Research Paper, or Others
-          2. "summary" - a concise 2-3 sentence summary
-          3. "tags" - array of 3-6 relevant keywords/tags
-          4. "sentiment" - overall sentiment: positive, neutral, or negative
-          
-          Return only valid JSON in this exact format:
-          {"classification": "Resume", "summary": "Brief summary here", "tags": ["tag1", "tag2", "tag3"], "sentiment": "positive"}`
-        },
-        {
-          role: 'user',
-          content: `Analyze this document: ${text.substring(0, 4000)}`
-        }
-      ],
-      temperature: 0.3,
-      max_tokens: 500,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error('Groq API request failed');
-  }
-
-  const data = await response.json();
-  const content = data.choices[0].message.content;
+  const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+  
+  // Limit text size to prevent excessive resource usage
+  const truncatedText = text.length > 4000 ? text.substring(0, 4000) + "..." : text;
   
   try {
-    return JSON.parse(content);
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'compound-beta',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a document analysis AI. Analyze the provided document text and return a JSON response with:
+            1. "classification" - categorize as: Resume, Invoice, Legal Agreement, Research Paper, or Others
+            2. "summary" - a concise 2-3 sentence summary
+            3. "tags" - array of 3-6 relevant keywords/tags
+            4. "sentiment" - overall sentiment: positive, neutral, or negative
+            5. "insights" - detailed insights and key findings (2-3 paragraphs)
+            6. "graphs" - array of suggested graph/chart data if applicable`
+          },
+          {
+            role: 'user',
+            content: `Analyze this document: ${truncatedText}`
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 800,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Groq API request failed');
+    }
+
+    const data = await response.json();
+    const content = data.choices[0].message.content;
+    
+    try {
+      return JSON.parse(content);
+    } catch (error) {
+      // Fallback if JSON parsing fails
+      return {
+        classification: 'Others',
+        summary: 'Document analyzed successfully.',
+        tags: ['document', 'analyzed'],
+        sentiment: 'neutral',
+        insights: 'Document has been processed and analyzed.',
+        graphs: []
+      };
+    }
   } catch (error) {
-    // Fallback if JSON parsing fails
+    console.error('Error analyzing document:', error);
     return {
       classification: 'Others',
-      summary: 'Document analyzed successfully.',
-      tags: ['document', 'analyzed'],
-      sentiment: 'neutral'
+      summary: 'Document analysis failed.',
+      tags: ['document'],
+      sentiment: 'neutral',
+      insights: 'Could not analyze the document content.',
+      graphs: []
     };
   }
 };
 
 export default Index;
+
+
+
